@@ -32,7 +32,7 @@ sp-inherents = { version = "2.0.0", path = "../../../primitives/inherents" }
 sp-timestamp = { version = "2.0.0", default-features = false, path = "../../../primitives/timestamp" }
 sp-tracing = { version = "2.0.0", path = "../../../primitives/tracing" }
 hash-db = "0.15.2"
-tempfile = "3.1.0"
+tempfile = "3.2.0"
 fs_extra = "1"
 hex = "0.4.0"
 rand = { version = "0.7.2", features = ["small_rng"] }

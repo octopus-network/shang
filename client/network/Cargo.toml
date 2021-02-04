@@ -77,7 +77,7 @@ sp-test-primitives = { version = "2.0.0", path = "../../primitives/test-primitiv
 sp-tracing = { version = "2.0.0", path = "../../primitives/tracing" }
 substrate-test-runtime = { version = "2.0.0", path = "../../test-utils/runtime" }
 substrate-test-runtime-client = { version = "2.0.0", path = "../../test-utils/runtime/client" }
-tempfile = "3.1.0"
+tempfile = "3.2.0"
 
 [features]
 default = []

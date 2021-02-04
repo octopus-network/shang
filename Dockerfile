@@ -5,7 +5,7 @@ RUN apt update && \
 apt install -y cmake pkg-config libssl-dev git gcc build-essential git clang libclang-dev
 RUN rustup update nightly && \
 rustup target add wasm32-unknown-unknown --toolchain nightly && \
-cargo install --path ./node
+cargo install --path ./bin/node-template/node
 
 FROM phusion/baseimage:0.11
 LABEL maintainer="chevdor@gmail.com"

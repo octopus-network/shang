@@ -36,11 +36,14 @@ spec:
         args:
           - -c
           - exec /usr/local/bin/cdot-shang
+            --bootnodes /dns/cdot-shang-validator-2-service/tcp/30333/p2p/12D3KooWHdiAxVd8uMQR1hGWXccidmfCwLqcMpGwR6QcTP6QRMuD
+            --bootnodes /dns/cdot-shang-validator-3-service/tcp/30333/p2p/12D3KooWSCufgHzV4fCwRijfH2k3abrpAJxTKxEvN1FDuRXA2U9x
             --chain=local
             --alice
             --node-key 0000000000000000000000000000000000000000000000000000000000000001
             --no-telemetry
             --validator
+            --execution Native
         env:
         - name: "a"
           valueFrom:
@@ -91,11 +94,13 @@ spec:
           - -c
           - exec /usr/local/bin/cdot-shang
             --bootnodes /dns/cdot-shang-validator-1-service/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp
+            --bootnodes /dns/cdot-shang-validator-3-service/tcp/30333/p2p/12D3KooWSCufgHzV4fCwRijfH2k3abrpAJxTKxEvN1FDuRXA2U9x
             --chain=local
             --bob
             --node-key 0000000000000000000000000000000000000000000000000000000000000002
             --no-telemetry
             --validator
+            --execution Native
 ---
 apiVersion: "v1"
 kind: "Service"
@@ -110,6 +115,57 @@ spec:
     port: 30333
   selector:
     app: "cdot-shang-validator-2"
+  type: "ClusterIP"
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "cdot-shang-validator-3"
+  namespace: "default"
+  labels:
+    app: "cdot-shang-validator-3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "cdot-shang-validator-3"
+  template:
+    metadata:
+      labels:
+        app: "cdot-shang-validator-3"
+    spec:
+      containers:
+      - name: "shang-node"
+        image: "gcr.io/cdot-dev-303308/shang:latest"
+        ports:
+        - containerPort: 30333
+          name: p2p
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - exec /usr/local/bin/cdot-shang
+            --bootnodes /dns/cdot-shang-validator-1-service/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp
+            --bootnodes /dns/cdot-shang-validator-2-service/tcp/30333/p2p/12D3KooWHdiAxVd8uMQR1hGWXccidmfCwLqcMpGwR6QcTP6QRMuD
+            --chain=local
+            --charlie
+            --node-key 0000000000000000000000000000000000000000000000000000000000000003
+            --no-telemetry
+            --validator
+            --execution Native
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "cdot-shang-validator-3-service"
+  namespace: "default"
+  labels:
+    app: "cdot-shang-validator-3"
+spec:
+  ports:
+  - protocol: "TCP"
+    port: 30333
+  selector:
+    app: "cdot-shang-validator-3"
   type: "ClusterIP"
 ---
 apiVersion: "apps/v1"
@@ -145,6 +201,7 @@ spec:
           - exec /usr/local/bin/cdot-shang
             --bootnodes /dns/cdot-shang-validator-1-service/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp
             --bootnodes /dns/cdot-shang-validator-2-service/tcp/30333/p2p/12D3KooWHdiAxVd8uMQR1hGWXccidmfCwLqcMpGwR6QcTP6QRMuD
+            --bootnodes /dns/cdot-shang-validator-3-service/tcp/30333/p2p/12D3KooWSCufgHzV4fCwRijfH2k3abrpAJxTKxEvN1FDuRXA2U9x
             --chain=local
             --no-telemetry
             --light

@@ -25,6 +25,16 @@ default-features = false
 version = "3.0.0"
 path = "../../../../frame/system"
 
+[dependencies.pallet-session]
+default-features = false
+version = "3.0.0"
+path = "../../../../frame/session"
+
+[dependencies.sp-std]
+default-features = false
+version = "3.0.0"
+path = "../../../../primitives/std"
+
 [dev-dependencies]
 serde = { version = "1.0.101" }
 
@@ -49,5 +59,7 @@ default = ['std']
 std = [
 	'codec/std',
 	'frame-support/std',
-	'frame-system/std'
+	'frame-system/std',
+	'pallet-session/std',
+	'sp-std/std'
 ]

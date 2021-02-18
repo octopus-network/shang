@@ -1,11 +1,12 @@
-FROM rust:1.49 as builder
+FROM rust:1.50 as builder
 WORKDIR /usr/src/cdot-shang
 COPY . .
 RUN apt update && \
 apt install -y cmake pkg-config libssl-dev git gcc build-essential git clang libclang-dev
 RUN rustup update nightly && \
 rustup target add wasm32-unknown-unknown --toolchain nightly && \
-cargo install --path ./bin/node-template/node
+cargo update -p funty --precise 1.1.0 && \
+cargo install --path ./bin/node-template/node --locked
 
 FROM phusion/baseimage:0.11
 LABEL maintainer="chevdor@gmail.com"

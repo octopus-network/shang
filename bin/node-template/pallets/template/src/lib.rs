@@ -16,6 +16,7 @@ mod tests;
 pub mod pallet {
 	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
+	use sp_std::prelude::*;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -101,4 +102,62 @@ pub mod pallet {
 			}
 		}
 	}
+
+	pub(crate) const LOG_TARGET: &'static str = "cdot";
+	pub type SessionIndex = u32;
+
+	impl<T: Config> pallet_session::SessionManager<T::AccountId> for Pallet<T> {
+	fn new_session(new_index: SessionIndex) -> Option<Vec<T::AccountId>> {
+		frame_support::debug::native::trace!(
+			target: LOG_TARGET,
+			"[{}] planning new_session({})",
+			<frame_system::Module<T>>::block_number(),
+			new_index
+		);
+		let alice = vec![
+			212, 53, 147, 199, 21, 253, 211, 28, 97, 20, 26, 189, 4, 169, 159, 214, 130, 44,
+			133, 88, 133, 76, 205, 227, 154, 86, 132, 231, 165, 109, 162, 125,
+			];
+		let bob = vec![
+			142, 175, 4, 21, 22, 135, 115, 99, 38, 201, 254, 161, 126, 37, 252, 82, 135, 97,
+			54, 147, 201, 18, 144, 156, 178, 38, 170, 71, 148, 242, 106, 72,
+			];
+		let charlie = vec![
+			144, 181, 171, 32, 92, 105, 116, 201, 234, 132, 27, 230, 136, 134, 70, 51, 220,
+			156, 168, 163, 87, 132, 62, 234, 207, 35, 20, 100, 153, 101, 254, 34,
+			];
+		if new_index % 2 == 0 {
+			Some(vec![
+				<T as frame_system::Config>::AccountId::decode(&mut &alice[..]).unwrap_or_default(),
+				<T as frame_system::Config>::AccountId::decode(&mut &bob[..]).unwrap_or_default(),
+				])
+		} else if new_index % 3 == 0 {
+			Some(vec![
+				<T as frame_system::Config>::AccountId::decode(&mut &alice[..]).unwrap_or_default(),
+				<T as frame_system::Config>::AccountId::decode(&mut &charlie[..]).unwrap_or_default(),
+				])
+		} else {
+			Some(vec![
+				<T as frame_system::Config>::AccountId::decode(&mut &bob[..]).unwrap_or_default(),
+				<T as frame_system::Config>::AccountId::decode(&mut &charlie[..]).unwrap_or_default(),
+				])
+			}
+	}
+	fn start_session(start_index: SessionIndex) {
+		frame_support::debug::native::trace!(
+			target: LOG_TARGET,
+			"[{}] starting start_session({})",
+			<frame_system::Module<T>>::block_number(),
+			start_index
+		);
+	}
+	fn end_session(end_index: SessionIndex) {
+		frame_support::debug::native::trace!(
+			target: LOG_TARGET,
+			"[{}] ending end_session({})",
+			<frame_system::Module<T>>::block_number(),
+			end_index
+		);
+	}
+}
 }

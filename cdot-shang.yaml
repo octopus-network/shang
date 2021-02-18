@@ -204,7 +204,6 @@ spec:
             --bootnodes /dns/cdot-shang-validator-3-service/tcp/30333/p2p/12D3KooWSCufgHzV4fCwRijfH2k3abrpAJxTKxEvN1FDuRXA2U9x
             --chain=local
             --no-telemetry
-            --light
             --ws-external
             --rpc-external
             --rpc-cors all

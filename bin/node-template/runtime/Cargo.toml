@@ -36,6 +36,7 @@ sp-std = { version = "3.0.0", default-features = false, path = "../../../primiti
 sp-transaction-pool = { version = "3.0.0", default-features = false, path = "../../../primitives/transaction-pool" }
 sp-version = { version = "3.0.0", default-features = false, path = "../../../primitives/version" }
 pallet-session = { version = "3.0.0", path = "../../../frame/session", default-features = false }
+pallet-indices = { version = "3.0.0", default-features = false, path = "../../../frame/indices" }
 
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { version = "3.0.0", default-features = false, path = "../../../frame/system/rpc/runtime-api/" }
@@ -47,6 +48,7 @@ frame-system-benchmarking = { version = "3.0.0", default-features = false, path 
 hex-literal = { version = "0.3.1", optional = true }
 
 template = { version = "2.0.0", default-features = false, path = "../pallets/template", package = "pallet-template" }
+offchain-worker = { version = "2.0.0", default-features = false, path = "../pallets/example-offchain-worker", package = "pallet-offchain-worker" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0", path = "../../../utils/wasm-builder" }
@@ -80,7 +82,9 @@ std = [
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"template/std",
+	"offchain-worker/std",
 	"pallet-session/std",
+	"pallet-indices/std",
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",

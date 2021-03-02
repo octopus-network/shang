@@ -4171,6 +4171,8 @@ dependencies = [
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
+ "pallet-indices",
+ "pallet-offchain-worker",
  "pallet-randomness-collective-flip",
  "pallet-session",
  "pallet-sudo",
@@ -4930,6 +4932,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-offchain-worker"
+version = "2.0.1"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "hex",
+ "lite-json",
+ "pallet-session",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-offences"
 version = "3.0.0"
 dependencies = [
@@ -5191,13 +5211,11 @@ version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
- "pallet-session",
  "parity-scale-codec",
  "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std",
 ]
 
 [[package]]

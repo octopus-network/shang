@@ -23,7 +23,6 @@ use frame_support::{assert_ok, parameter_types};
 use sp_core::{
 	H256,
 	offchain::{OffchainExt, TransactionPoolExt, testing},
-	sr25519::Signature,
 };
 
 use sp_keystore::{
@@ -31,7 +30,7 @@ use sp_keystore::{
 	testing::KeyStore,
 };
 use sp_runtime::{
-	RuntimeAppPublic,
+	RuntimeAppPublic, MultiSignature,
 	testing::{Header, TestXt},
 	traits::{
 		BlakeTwo256, IdentityLookup, Extrinsic as ExtrinsicT,
@@ -54,6 +53,9 @@ frame_support::construct_runtime!(
 	}
 );
 
+type Signature = MultiSignature;
+type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
+
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
@@ -70,7 +72,7 @@ impl frame_system::Config for Test {
 	type BlockNumber = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
-	type AccountId = sp_core::sr25519::Public;
+	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = Event;
@@ -85,7 +87,6 @@ impl frame_system::Config for Test {
 }
 
 type Extrinsic = TestXt<Call, ()>;
-type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
 impl frame_system::offchain::SigningTypes for Test {
 	type Public = <Signature as Verify>::Signer;
@@ -128,19 +129,6 @@ impl Config for Test {
 }
 
 #[test]
-fn it_aggregates_the_price() {
-	sp_io::TestExternalities::default().execute_with(|| {
-		assert_eq!(Example::average_price(), None);
-
-		assert_ok!(Example::submit_price(Origin::signed(Default::default()), 27));
-		assert_eq!(Example::average_price(), Some(27));
-
-		assert_ok!(Example::submit_price(Origin::signed(Default::default()), 43));
-		assert_eq!(Example::average_price(), Some(35));
-	});
-}
-
-#[test]
 fn should_make_http_call_and_parse_result() {
 	let (offchain, state) = testing::TestOffchainExt::new();
 	let mut t = sp_io::TestExternalities::default();
@@ -150,9 +138,9 @@ fn should_make_http_call_and_parse_result() {
 
 	t.execute_with(|| {
 		// when
-		let price = Example::fetch_price().unwrap();
+		let set = Example::fetch_validator_set(0).unwrap();
 		// then
-		assert_eq!(price, 15523);
+		// assert_eq!(price, None);
 	});
 }
 
@@ -191,180 +179,15 @@ fn knows_how_to_mock_several_http_calls() {
 
 
 	t.execute_with(|| {
-		let price1 = Example::fetch_price().unwrap();
-		let price2 = Example::fetch_price().unwrap();
-		let price3 = Example::fetch_price().unwrap();
+		let price1 = Example::fetch_validator_set(0).unwrap();
+		let price2 = Example::fetch_validator_set(0).unwrap();
+		let price3 = Example::fetch_validator_set(0).unwrap();
 
-		assert_eq!(price1, 100);
-		assert_eq!(price2, 200);
-		assert_eq!(price3, 300);
+		// assert_eq!(price1, None);
+		// assert_eq!(price2, None);
+		// assert_eq!(price3, None);
 	})
 
-}
-
-#[test]
-fn should_submit_signed_transaction_on_chain() {
-	const PHRASE: &str = "news slush supreme milk chapter athlete soap sausage put clutch what kitten";
-
-	let (offchain, offchain_state) = testing::TestOffchainExt::new();
-	let (pool, pool_state) = testing::TestTransactionPoolExt::new();
-	let keystore = KeyStore::new();
-	SyncCryptoStore::sr25519_generate_new(
-		&keystore,
-		crate::crypto::Public::ID,
-		Some(&format!("{}/hunter1", PHRASE))
-	).unwrap();
-
-
-	let mut t = sp_io::TestExternalities::default();
-	t.register_extension(OffchainExt::new(offchain));
-	t.register_extension(TransactionPoolExt::new(pool));
-	t.register_extension(KeystoreExt(Arc::new(keystore)));
-
-	price_oracle_response(&mut offchain_state.write());
-
-	t.execute_with(|| {
-		// when
-		Example::fetch_price_and_send_signed().unwrap();
-		// then
-		let tx = pool_state.write().transactions.pop().unwrap();
-		assert!(pool_state.read().transactions.is_empty());
-		let tx = Extrinsic::decode(&mut &*tx).unwrap();
-		assert_eq!(tx.signature.unwrap().0, 0);
-		assert_eq!(tx.call, Call::Example(crate::Call::submit_price(15523)));
-	});
-}
-
-#[test]
-fn should_submit_unsigned_transaction_on_chain_for_any_account() {
-	const PHRASE: &str = "news slush supreme milk chapter athlete soap sausage put clutch what kitten";
-	let (offchain, offchain_state) = testing::TestOffchainExt::new();
-	let (pool, pool_state) = testing::TestTransactionPoolExt::new();
-
-	let keystore = KeyStore::new();
-
-	SyncCryptoStore::sr25519_generate_new(
-		&keystore,
-		crate::crypto::Public::ID,
-		Some(&format!("{}/hunter1", PHRASE))
-	).unwrap();
-
-	let public_key = SyncCryptoStore::sr25519_public_keys(&keystore, crate::crypto::Public::ID)
-		.get(0)
-		.unwrap()
-		.clone();
-
-	let mut t = sp_io::TestExternalities::default();
-	t.register_extension(OffchainExt::new(offchain));
-	t.register_extension(TransactionPoolExt::new(pool));
-	t.register_extension(KeystoreExt(Arc::new(keystore)));
-
-	price_oracle_response(&mut offchain_state.write());
-
-	let price_payload = PricePayload {
-		block_number: 1,
-		price: 15523,
-		public: <Test as SigningTypes>::Public::from(public_key),
-	};
-
-	// let signature = price_payload.sign::<crypto::TestAuthId>().unwrap();
-	t.execute_with(|| {
-		// when
-		Example::fetch_price_and_send_unsigned_for_any_account(1).unwrap();
-		// then
-		let tx = pool_state.write().transactions.pop().unwrap();
-		let tx = Extrinsic::decode(&mut &*tx).unwrap();
-		assert_eq!(tx.signature, None);
-		if let Call::Example(crate::Call::submit_price_unsigned_with_signed_payload(body, signature)) = tx.call {
-			assert_eq!(body, price_payload);
-
-			let signature_valid = <PricePayload<
-				<Test as SigningTypes>::Public,
-				<Test as frame_system::Config>::BlockNumber
-					> as SignedPayload<Test>>::verify::<crypto::TestAuthId>(&price_payload, signature);
-
-			assert!(signature_valid);
-		}
-	});
-}
-
-#[test]
-fn should_submit_unsigned_transaction_on_chain_for_all_accounts() {
-	const PHRASE: &str = "news slush supreme milk chapter athlete soap sausage put clutch what kitten";
-	let (offchain, offchain_state) = testing::TestOffchainExt::new();
-	let (pool, pool_state) = testing::TestTransactionPoolExt::new();
-
-	let keystore = KeyStore::new();
-
-	SyncCryptoStore::sr25519_generate_new(
-		&keystore,
-		crate::crypto::Public::ID,
-		Some(&format!("{}/hunter1", PHRASE))
-	).unwrap();
-
-	let public_key = SyncCryptoStore::sr25519_public_keys(&keystore, crate::crypto::Public::ID)
-		.get(0)
-		.unwrap()
-		.clone();
-
-	let mut t = sp_io::TestExternalities::default();
-	t.register_extension(OffchainExt::new(offchain));
-	t.register_extension(TransactionPoolExt::new(pool));
-	t.register_extension(KeystoreExt(Arc::new(keystore)));
-
-	price_oracle_response(&mut offchain_state.write());
-
-	let price_payload = PricePayload {
-		block_number: 1,
-		price: 15523,
-		public: <Test as SigningTypes>::Public::from(public_key),
-	};
-
-	// let signature = price_payload.sign::<crypto::TestAuthId>().unwrap();
-	t.execute_with(|| {
-		// when
-		Example::fetch_price_and_send_unsigned_for_all_accounts(1).unwrap();
-		// then
-		let tx = pool_state.write().transactions.pop().unwrap();
-		let tx = Extrinsic::decode(&mut &*tx).unwrap();
-		assert_eq!(tx.signature, None);
-		if let Call::Example(crate::Call::submit_price_unsigned_with_signed_payload(body, signature)) = tx.call {
-			assert_eq!(body, price_payload);
-
-			let signature_valid = <PricePayload<
-				<Test as SigningTypes>::Public,
-				<Test as frame_system::Config>::BlockNumber
-					> as SignedPayload<Test>>::verify::<crypto::TestAuthId>(&price_payload, signature);
-
-			assert!(signature_valid);
-		}
-	});
-}
-
-#[test]
-fn should_submit_raw_unsigned_transaction_on_chain() {
-	let (offchain, offchain_state) = testing::TestOffchainExt::new();
-	let (pool, pool_state) = testing::TestTransactionPoolExt::new();
-
-	let keystore = KeyStore::new();
-
-	let mut t = sp_io::TestExternalities::default();
-	t.register_extension(OffchainExt::new(offchain));
-	t.register_extension(TransactionPoolExt::new(pool));
-	t.register_extension(KeystoreExt(Arc::new(keystore)));
-
-	price_oracle_response(&mut offchain_state.write());
-
-	t.execute_with(|| {
-		// when
-		Example::fetch_price_and_send_raw_unsigned(1).unwrap();
-		// then
-		let tx = pool_state.write().transactions.pop().unwrap();
-		assert!(pool_state.read().transactions.is_empty());
-		let tx = Extrinsic::decode(&mut &*tx).unwrap();
-		assert_eq!(tx.signature, None);
-		assert_eq!(tx.call, Call::Example(crate::Call::submit_price_unsigned(1, 15523)));
-	});
 }
 
 fn price_oracle_response(state: &mut testing::OffchainState) {
@@ -380,15 +203,25 @@ fn price_oracle_response(state: &mut testing::OffchainState) {
 #[test]
 fn parse_price_works() {
 	let test_data = vec![
-		("{\"USD\":6536.92}", Some(653692)),
-		("{\"USD\":65.92}", Some(6592)),
-		("{\"USD\":6536.924565}", Some(653692)),
-		("{\"USD\":6536}", Some(653600)),
-		("{\"USD2\":6536}", None),
-		("{\"USD\":\"6432\"}", None),
+		("{
+			\"appchain_id\":100,
+			\"validator_set_index\":1,
+			\"validators\":[
+				{
+					\"ocw_id\":\"0x306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20\",
+					\"id\":\"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d\",
+					\"weight\":100
+				},
+				{
+					\"ocw_id\":\"0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e\",
+					\"id\":\"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48\",
+					\"weight\":200
+				}
+			]
+		}", None),
 	];
 
 	for (json, expected) in test_data {
-		assert_eq!(expected, Example::parse_price(json));
+		assert_eq!(expected, Example::parse_validator_set(json));
 	}
 }

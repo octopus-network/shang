@@ -32,6 +32,8 @@ spec:
         ports:
         - containerPort: 30333
           name: p2p
+        - containerPort: 9933
+          name: http-rpc
         command: ["/bin/sh"]
         args:
           - -c
@@ -44,6 +46,7 @@ spec:
             --no-telemetry
             --validator
             --execution Native
+            --rpc-cors all
         env:
         - name: "a"
           valueFrom:
@@ -60,8 +63,14 @@ metadata:
     app: "cdot-shang-validator-1"
 spec:
   ports:
-  - protocol: "TCP"
-    port: 30333
+  - port: 30333
+    name: p2p
+    protocol: "TCP"
+    targetPort: 30333
+  - port: 9933
+    name: http-rpc
+    protocol: "TCP"
+    targetPort: 9933
   selector:
     app: "cdot-shang-validator-1"
   type: "ClusterIP"
@@ -89,6 +98,8 @@ spec:
         ports:
         - containerPort: 30333
           name: p2p
+        - containerPort: 9933
+          name: http-rpc
         command: ["/bin/sh"]
         args:
           - -c
@@ -101,6 +112,7 @@ spec:
             --no-telemetry
             --validator
             --execution Native
+            --rpc-cors all
 ---
 apiVersion: "v1"
 kind: "Service"
@@ -111,8 +123,14 @@ metadata:
     app: "cdot-shang-validator-2"
 spec:
   ports:
-  - protocol: "TCP"
-    port: 30333
+  - port: 30333
+    name: p2p
+    protocol: "TCP"
+    targetPort: 30333
+  - port: 9933
+    name: http-rpc
+    protocol: "TCP"
+    targetPort: 9933
   selector:
     app: "cdot-shang-validator-2"
   type: "ClusterIP"
@@ -140,6 +158,8 @@ spec:
         ports:
         - containerPort: 30333
           name: p2p
+        - containerPort: 9933
+          name: http-rpc
         command: ["/bin/sh"]
         args:
           - -c
@@ -152,6 +172,7 @@ spec:
             --no-telemetry
             --validator
             --execution Native
+            --rpc-cors all
 ---
 apiVersion: "v1"
 kind: "Service"
@@ -162,8 +183,14 @@ metadata:
     app: "cdot-shang-validator-3"
 spec:
   ports:
-  - protocol: "TCP"
-    port: 30333
+  - port: 30333
+    name: p2p
+    protocol: "TCP"
+    targetPort: 30333
+  - port: 9933
+    name: http-rpc
+    protocol: "TCP"
+    targetPort: 9933
   selector:
     app: "cdot-shang-validator-3"
   type: "ClusterIP"

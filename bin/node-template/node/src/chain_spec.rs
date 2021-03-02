@@ -2,7 +2,7 @@ use sp_core::{Pair, Public, sr25519};
 use node_template_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
 	SudoConfig, SystemConfig, WASM_BINARY, Signature,
-	opaque::SessionKeys, SessionConfig,
+	opaque::SessionKeys, SessionConfig, IndicesConfig, OffchainWorkerConfig,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -62,6 +62,9 @@ pub fn development_config() -> Result<ChainSpec, String> {
 			vec![
 				authority_keys_from_seed("Alice"),
 			],
+			vec![
+				(get_account_id_from_seed::<sr25519::Public>("Dave"), get_account_id_from_seed::<sr25519::Public>("Alice"), 100),
+			],
 			// Sudo account
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
 			// Pre-funded accounts
@@ -103,6 +106,10 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 				authority_keys_from_seed("Bob"),
 				authority_keys_from_seed("Charlie"),
 			],
+			vec![
+				(get_account_id_from_seed::<sr25519::Public>("Dave"), get_account_id_from_seed::<sr25519::Public>("Alice"), 100),
+				(get_account_id_from_seed::<sr25519::Public>("Eve"), get_account_id_from_seed::<sr25519::Public>("Bob"), 100),
+			],
 			// Sudo account
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
 			// Pre-funded accounts
@@ -139,6 +146,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 fn testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(AuraId, GrandpaId, AccountId)>,
+	validators: Vec<(AccountId, AccountId, u64)>,
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 	_enable_println: bool,
@@ -148,6 +156,9 @@ fn testnet_genesis(
 			// Add Wasm runtime to storage.
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
+		}),
+		pallet_indices: Some(IndicesConfig {
+			indices: vec![],
 		}),
 		pallet_balances: Some(BalancesConfig {
 			// Configure endowed accounts with initial balance of 1 << 60.
@@ -166,6 +177,9 @@ fn testnet_genesis(
 					x.1.clone(),
 				))
 			}).collect::<Vec<_>>(),
+		}),
+		offchain_worker: Some(OffchainWorkerConfig {
+			vals: validators,
 		}),
 		pallet_sudo: Some(SudoConfig {
 			// Assign network admin rights.

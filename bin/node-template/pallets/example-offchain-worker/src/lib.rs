@@ -244,7 +244,6 @@ impl<T: Config> Module<T> {
 		if vals.len() != 0 {
 			assert!(<CurrentValidatorSet<T>>::get().is_none(), "CurrentValidatorSet are already initialized!");
 			<CurrentValidatorSet<T>>::put(
-				// ValidatorSet<<T as frame_system::Config>::AccountId>
 				ValidatorSet{
 					appchain_id: 100,
 					validator_set_index: 0,
@@ -340,7 +339,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Fetch current price and return the result in cents.
-	fn fetch_validator_set(_index: u32) -> Result<ValidatorSet<<T as frame_system::Config>::AccountId>, http::Error> {
+	fn fetch_validator_set(index: u32) -> Result<ValidatorSet<<T as frame_system::Config>::AccountId>, http::Error> {
 		// We want to keep the offchain worker execution time reasonable, so we set a hard-coded
 		// deadline to 2s to complete the external call.
 		// You can also wait idefinitely for the response, however you may still get a timeout
@@ -388,22 +387,64 @@ impl<T: Config> Module<T> {
 		})?;
 		// debug::native::info!("Got response: {:?}", body_str);
 
-		let body_str = "{
-			\"appchain_id\":100,
-			\"validator_set_index\":1,
-			\"validators\":[
-				{
-					\"ocw_id\":\"0x306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20\",
-					\"id\":\"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d\",
-					\"weight\":100
-				},
-				{
-					\"ocw_id\":\"0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e\",
-					\"id\":\"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48\",
-					\"weight\":200
-				}
-			]
-		}";
+		let body_str = match index {
+			1 => {
+				"{
+					\"appchain_id\":100,
+					\"validator_set_index\":1,
+					\"validators\":[
+						{
+							\"ocw_id\":\"0x306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20\",
+							\"id\":\"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d\",
+							\"weight\":100
+						},
+						{
+							\"ocw_id\":\"0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e\",
+							\"id\":\"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48\",
+							\"weight\":100
+						}
+					]
+				}"
+			}
+			2 => {
+				"{
+					\"appchain_id\":100,
+					\"validator_set_index\":2,
+					\"validators\":[
+						{
+							\"ocw_id\":\"0x306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20\",
+							\"id\":\"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d\",
+							\"weight\":100
+						},
+						{
+							\"ocw_id\":\"0x1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c\",
+							\"id\":\"0x90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22\",
+							\"weight\":100
+						}
+					]
+				}"
+
+			}
+			_ => {
+				"{
+					\"appchain_id\":100,
+					\"validator_set_index\":3,
+					\"validators\":[
+						{
+							\"ocw_id\":\"0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e\",
+							\"id\":\"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48\",
+							\"weight\":100
+						},
+						{
+							\"ocw_id\":\"0x1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c\",
+							\"id\":\"0x90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22\",
+							\"weight\":100
+						}
+					]
+				}"
+
+			}
+		};
 
 		let set = match Self::parse_validator_set(body_str) {
 			Some(set) => Ok(set),
@@ -640,44 +681,38 @@ pub type SessionIndex = u32;
 
 impl<T: Config> pallet_session::SessionManager<T::AccountId> for Module<T> {
 	fn new_session(new_index: SessionIndex) -> Option<Vec<T::AccountId>> {
-			frame_support::debug::native::trace!(
+			frame_support::debug::native::info!(
 				target: LOG_TARGET,
 				"[{}] planning new_session({})",
 				<frame_system::Module<T>>::block_number(),
 				new_index
 			);
-			let alice = vec![
-				212, 53, 147, 199, 21, 253, 211, 28, 97, 20, 26, 189, 4, 169, 159, 214, 130, 44,
-				133, 88, 133, 76, 205, 227, 154, 86, 132, 231, 165, 109, 162, 125,
-				];
-			let bob = vec![
-				142, 175, 4, 21, 22, 135, 115, 99, 38, 201, 254, 161, 126, 37, 252, 82, 135, 97,
-				54, 147, 201, 18, 144, 156, 178, 38, 170, 71, 148, 242, 106, 72,
-				];
-			let charlie = vec![
-				144, 181, 171, 32, 92, 105, 116, 201, 234, 132, 27, 230, 136, 134, 70, 51, 220,
-				156, 168, 163, 87, 132, 62, 234, 207, 35, 20, 100, 153, 101, 254, 34,
-				];
-			if new_index % 2 == 0 {
-				Some(vec![
-					<T as frame_system::Config>::AccountId::decode(&mut &alice[..]).unwrap_or_default(),
-					<T as frame_system::Config>::AccountId::decode(&mut &bob[..]).unwrap_or_default(),
-					])
-			} else if new_index % 3 == 0 {
-				Some(vec![
-					<T as frame_system::Config>::AccountId::decode(&mut &alice[..]).unwrap_or_default(),
-					<T as frame_system::Config>::AccountId::decode(&mut &charlie[..]).unwrap_or_default(),
-					])
-			} else {
-				Some(vec![
-					<T as frame_system::Config>::AccountId::decode(&mut &bob[..]).unwrap_or_default(),
-					<T as frame_system::Config>::AccountId::decode(&mut &charlie[..]).unwrap_or_default(),
-					])
+			if let Some(current_set) = <CurrentValidatorSet<T>>::get() {
+				let total_weight: u64 = current_set.validators.iter().map(|v| v.weight).sum();
+				let next_validator_set = <Voters<T>>::iter()
+					.find(|(_k, v)| v.iter().map(|x| x.weight).sum::<u64>() == total_weight)
+					.map(|(index, _v)| {
+						debug::native::info!("ys-debug: total_weight: {}, index: {}", total_weight, index);
+						<CandidateValidatorSets<T>>::get()[index as usize].clone()
+					});
+				match next_validator_set {
+					Some(new_set) => {
+						// TODO: transaction
+						<CurrentValidatorSet<T>>::put(new_set.clone());
+						<CandidateValidatorSets<T>>::kill();
+						<Voters<T>>::drain();
+						debug::native::info!("ys-debug: Validator set changed to: {:?}", new_set.clone());
+						Some(new_set.validators.into_iter().map(|vals| vals.id).collect())
+					}
+					None => None
 				}
+			} else {
+				None
+			}
 	}
 
 	fn start_session(start_index: SessionIndex) {
-		frame_support::debug::native::trace!(
+		frame_support::debug::native::info!(
 			target: LOG_TARGET,
 			"[{}] starting start_session({})",
 			<frame_system::Module<T>>::block_number(),
@@ -686,7 +721,7 @@ impl<T: Config> pallet_session::SessionManager<T::AccountId> for Module<T> {
 	}
 
 	fn end_session(end_index: SessionIndex) {
-		frame_support::debug::native::trace!(
+		frame_support::debug::native::info!(
 			target: LOG_TARGET,
 			"[{}] ending end_session({})",
 			<frame_system::Module<T>>::block_number(),

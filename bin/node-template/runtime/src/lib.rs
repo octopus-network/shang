@@ -258,7 +258,7 @@ impl pallet_transaction_payment::Config for Runtime {
 }
 
 parameter_types! {
-	pub const Period: u32 = 2;
+	pub const Period: u32 = 10;
 	pub const Offset: u32 = 10;
 	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }

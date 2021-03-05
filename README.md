@@ -1,31 +1,87 @@
-# Substrate &middot; [![GitHub license](https://img.shields.io/badge/license-GPL3%2FApache2-blue)](#LICENSE) [![GitLab Status](https://gitlab.parity.io/parity/substrate/badges/master/pipeline.svg)](https://gitlab.parity.io/parity/substrate/pipelines) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.adoc)
+## Run a Local Testnet
 
-<p align="center">
-  <img src="/docs/media/sub.gif">
-</p>
+A simple local testnet consists 4 nodes: 3 validator nodes and 1 full node, the full node is used to expose the RPC interfaces.
 
+Build node-template with command:
 
-Substrate is a next-generation framework for blockchain innovation 🚀.
+```
+cargo build --bin node-template
+```
 
-## Trying it out
+Run each of the follwoing commands in different terminals:
 
-Simply go to [substrate.dev](https://substrate.dev) and follow the 
-[installation](https://substrate.dev/docs/en/knowledgebase/getting-started/) instructions. You can 
-also try out one of the [tutorials](https://substrate.dev/en/tutorials).
+```
+rm -rf /tmp/alice
+./shang/target/debug/node-template \
+--base-path /tmp/alice \
+--bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWHdiAxVd8uMQR1hGWXccidmfCwLqcMpGwR6QcTP6QRMuD \
+--bootnodes /ip4/127.0.0.1/tcp/30335/p2p/12D3KooWSCufgHzV4fCwRijfH2k3abrpAJxTKxEvN1FDuRXA2U9x \
+--chain=local \
+--alice \
+--node-key 0000000000000000000000000000000000000000000000000000000000000001 \
+--no-telemetry \
+--validator \
+--execution Native
+```
 
-## Contributions & Code of Conduct
+```
+rm -rf /tmp/bob
+./shang/target/debug/node-template \
+--base-path /tmp/bob \
+--bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp \
+--bootnodes /ip4/127.0.0.1/tcp/30335/p2p/12D3KooWSCufgHzV4fCwRijfH2k3abrpAJxTKxEvN1FDuRXA2U9x \
+--chain=local \
+--bob \
+--node-key 0000000000000000000000000000000000000000000000000000000000000002 \
+--port 30334 \
+--rpc-port 9934 \
+--ws-port 9945 \
+--no-telemetry \
+--validator \
+--execution Native
 
-Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](docs/CODE_OF_CONDUCT.md).
+```
 
-## Security
+```
+rm -rf /tmp/charlie
+./shang/target/debug/node-template \
+--base-path /tmp/charlie \
+--bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp \
+--bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWHdiAxVd8uMQR1hGWXccidmfCwLqcMpGwR6QcTP6QRMuD \
+--chain=local \
+--charlie \
+--node-key 0000000000000000000000000000000000000000000000000000000000000003 \
+--port 30335 \
+--rpc-port 9935 \
+--ws-port 9946 \
+--no-telemetry \
+--validator \
+--execution Native
+```
 
-The security policy and procedures can be found in [`docs/SECURITY.md`](docs/SECURITY.md).
+```
+rm -rf /tmp/full
+./shang/target/debug/node-template \
+--base-path /tmp/full \
+--bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp \
+--bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWHdiAxVd8uMQR1hGWXccidmfCwLqcMpGwR6QcTP6QRMuD \
+--bootnodes /ip4/127.0.0.1/tcp/30335/p2p/12D3KooWSCufgHzV4fCwRijfH2k3abrpAJxTKxEvN1FDuRXA2U9x \
+--chain=local \
+--port 30336 \
+--ws-port 9947 \
+--ws-external \
+--rpc-external \
+--rpc-cors all \
+--no-telemetry \
+--execution Native
+```
 
-## License
+Then insert keys for offchain workers:
 
-- Substrate Primitives (`sp-*`), Frame (`frame-*`) and the pallets (`pallets-*`), binaries (`/bin`) and all other utilities are licensed under [Apache 2.0](LICENSE-APACHE2).
-- Substrate Client (`/client/*` / `sc-*`) is licensed under [GPL v3.0 with a classpath linking exception](LICENSE-GPL3).
+```
+curl http://localhost:9933 -H "Content-Type:application/json;charset=utf-8" -d  '{ "jsonrpc":"2.0", "id":1, "method":"author_insertKey", "params": ["oct!", "0x868020ae0687dda7d57565093a69090211449845a7e11453612800b663307246", "0x306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20"] }'
+curl http://localhost:9934 -H "Content-Type:application/json;charset=utf-8" -d  '{ "jsonrpc":"2.0", "id":1, "method":"author_insertKey", "params": ["oct!", "0x786ad0e2df456fe43dd1f91ebca22e235bc162e0bb8d53c633e8c85b2af68b7a", "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"] }'
+curl http://localhost:9935 -H "Content-Type:application/json;charset=utf-8" -d  '{ "jsonrpc":"2.0", "id":1, "method":"author_insertKey", "params": ["oct!", "0x42438b7883391c05512a938e36c2df0131e088b3756d6aa7a755fbff19d2f842", "0x1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c"] }'
+```
 
-The reason for the split-licensing is to ensure that for the vast majority of teams using Substrate to create feature-chains, then all changes can be made entirely in Apache2-licensed code, allowing teams full freedom over what and how they release and giving licensing clarity to commercial teams.
-
-In the interests of the community, we require any deeper improvements made to Substrate's core logic (e.g. Substrate's internal consensus, crypto or database code) to be contributed back so everyone can benefit.
+Run a frontend app and connect to the full node or observe the state changes through terminal logs.

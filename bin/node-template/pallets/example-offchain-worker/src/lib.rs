@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 use frame_system::{
 	self as system,
 	ensure_none,
@@ -27,6 +29,7 @@ use sp_std::vec::Vec;
 use lite_json::json::JsonValue;
 use sp_std::prelude::*;
 use sp_runtime::traits::IdentifyAccount;
+use alloc::string::{String, ToString};
 
 #[cfg(test)]
 mod tests;
@@ -321,6 +324,7 @@ impl<T: Config> Module<T> {
 		// Make an external HTTP request to fetch the current validator set.
 		// Note this call will block until response is received.
 		let set = Self::fetch_validator_set(next_index).map_err(|_| "Failed to fetch validator set")?;
+		debug::native::info!("new validator set: {:?}", set);
 
 		// -- Sign using any account
 		let (_, result) = Signer::<T, T::AuthorityId>::any_account().send_unsigned_transaction(
@@ -338,7 +342,7 @@ impl<T: Config> Module<T> {
 		Ok(())
 	}
 
-	/// Fetch current price and return the result in cents.
+	/// Fetch current validator set.
 	fn fetch_validator_set(index: u32) -> Result<ValidatorSet<<T as frame_system::Config>::AccountId>, http::Error> {
 		// We want to keep the offchain worker execution time reasonable, so we set a hard-coded
 		// deadline to 2s to complete the external call.
@@ -350,9 +354,28 @@ impl<T: Config> Module<T> {
 		// you can find in `sp_io`. The API is trying to be similar to `reqwest`, but
 		// since we are running in a custom WASM execution environment we can't simply
 		// import the library here.
-		let request = http::Request::get(
-			"https://www.baidu.com"
-		);
+		let index = Self::encode_args(index).unwrap();
+
+		let mut body = b"
+			{
+				\"jsonrpc\": \"2.0\",
+				\"id\": \"dontcare\",
+				\"method\": \"query\",
+				\"params\": {
+				  \"request_type\": \"call_function\",
+				  \"finality\": \"final\",
+				  \"account_id\": \"yuanchao.testnet\",
+				  \"method_name\": \"get\",
+				  \"args_base64\": \"".to_vec();
+		body.extend(&index);
+		body.extend( b"\"
+			}
+		}");
+		let request = http::Request::default()
+			.method(http::Method::Post)
+			.url("https://rpc.testnet.near.org")
+			.body(vec![body])
+			.add_header("Content-Type", "application/json");
 		// We set the deadline for sending of the request, note that awaiting response can
 		// have a separate deadline. Next we send the request, before that it's also possible
 		// to alter request headers or stream body content in case of non-GET requests.
@@ -385,71 +408,12 @@ impl<T: Config> Module<T> {
 			debug::warn!("No UTF8 body");
 			http::Error::Unknown
 		})?;
-		// debug::native::info!("Got response: {:?}", body_str);
-
-		let body_str = match index {
-			1 => {
-				"{
-					\"appchain_id\":100,
-					\"validator_set_index\":1,
-					\"validators\":[
-						{
-							\"ocw_id\":\"0x306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20\",
-							\"id\":\"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d\",
-							\"weight\":100
-						},
-						{
-							\"ocw_id\":\"0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e\",
-							\"id\":\"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48\",
-							\"weight\":100
-						}
-					]
-				}"
-			}
-			2 => {
-				"{
-					\"appchain_id\":100,
-					\"validator_set_index\":2,
-					\"validators\":[
-						{
-							\"ocw_id\":\"0x306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20\",
-							\"id\":\"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d\",
-							\"weight\":100
-						},
-						{
-							\"ocw_id\":\"0x1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c\",
-							\"id\":\"0x90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22\",
-							\"weight\":100
-						}
-					]
-				}"
-
-			}
-			_ => {
-				"{
-					\"appchain_id\":100,
-					\"validator_set_index\":3,
-					\"validators\":[
-						{
-							\"ocw_id\":\"0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e\",
-							\"id\":\"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48\",
-							\"weight\":100
-						},
-						{
-							\"ocw_id\":\"0x1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c\",
-							\"id\":\"0x90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22\",
-							\"weight\":100
-						}
-					]
-				}"
-
-			}
-		};
+		debug::native::info!("Got response: {:?}", body_str);
 
 		let set = match Self::parse_validator_set(body_str) {
 			Some(set) => Ok(set),
 			None => {
-				debug::warn!("Unable to extract price from the response: {:?}", body_str);
+				debug::warn!("Unable to extract validator set from the response: {:?}", body_str);
 				Err(http::Error::Unknown)
 			}
 		}?;
@@ -459,13 +423,26 @@ impl<T: Config> Module<T> {
 		Ok(set)
 	}
 
-	fn parse_validator_set(price_str: &str) -> Option<ValidatorSet<<T as frame_system::Config>::AccountId>> {
-		let val = lite_json::parse_json(price_str);
+	fn encode_args(index: u32) -> Option<Vec<u8>> {
+		let a = String::from("{\"index\":");
+		let index = index.to_string();
+		let b = String::from("}");
+		let json = a + &index + &b;
+		let res = base64::encode(json).into_bytes();
+		Some(res)
+	}
+
+	fn parse_validator_set(body_str: &str) -> Option<ValidatorSet<<T as frame_system::Config>::AccountId>> {
+		// TODO
+		let result = Self::extract_result(body_str).unwrap();
+		let result_str = sp_std::str::from_utf8(&result).unwrap();
+		debug::native::info!("Got result: {:?}", result_str);
 		let mut set: ValidatorSet<<T as frame_system::Config>::AccountId> = ValidatorSet {
 			appchain_id: 0,
 			validator_set_index: 0,
 			validators: vec![],
 		};
+		let val = lite_json::parse_json(result_str);
 		val.ok().and_then(|v| match v {
 			JsonValue::Object(obj) => {
 				set.appchain_id = obj
@@ -571,6 +548,67 @@ impl<T: Config> Module<T> {
 						_ => None,
 					});
 				Some(set)
+			}
+			_ => None,
+		})
+	}
+
+	fn extract_result(body_str: &str) -> Option<Vec<u8>> {
+		let val = lite_json::parse_json(body_str);
+		val.ok().and_then(|v| match v {
+			JsonValue::Object(obj) => {
+				let version = obj
+					.clone()
+					.into_iter()
+					.find(|(k, _)| {
+						let mut jsonrpc = "jsonrpc".chars();
+						k.iter().all(|k| Some(*k) == jsonrpc.next())
+					})
+					.and_then(|v| match v.1 {
+						JsonValue::String(s) => Some(s),
+						_ => None,
+					})?;
+				debug::native::info!("version: {:?}", version);
+				let id = obj
+					.clone()
+					.into_iter()
+					.find(|(k, _)| {
+						let mut id = "id".chars();
+						k.iter().all(|k| Some(*k) == id.next())
+					})
+					.and_then(|v| match v.1 {
+						JsonValue::String(s) => Some(s),
+						_ => None,
+					})?;
+				debug::native::info!("id: {:?}", id);
+				obj.into_iter()
+					.find(|(k, _)| {
+						let mut result = "result".chars();
+						k.iter().all(|k| Some(*k) == result.next())
+					})
+					.and_then(|(_, v)| match v {
+						JsonValue::Object(obj) => {
+							obj.into_iter()
+								.find(|(k, _)| {
+									let mut values = "result".chars();
+									k.iter().all(|k| Some(*k) == values.next())
+								})
+								.and_then(|(_, v)| match v {
+									JsonValue::Array(vs) => {
+										// TODO
+										let res: Vec<u8> = vs.iter().map(|jv| match jv {
+											JsonValue::Number(n) => {
+												n.integer as u8
+											}
+											_ => 0
+										}).collect();
+										Some(res)
+									}
+									_ => None
+								})
+						}
+						_ => None,
+					})
 			}
 			_ => None,
 		})

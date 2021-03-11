@@ -356,21 +356,21 @@ impl<T: Config> Module<T> {
 		// import the library here.
 		let index = Self::encode_args(index).unwrap();
 
-		let mut body = b"
-			{
-				\"jsonrpc\": \"2.0\",
-				\"id\": \"dontcare\",
-				\"method\": \"query\",
-				\"params\": {
-				  \"request_type\": \"call_function\",
-				  \"finality\": \"final\",
-				  \"account_id\": \"yuanchao.testnet\",
-				  \"method_name\": \"get\",
-				  \"args_base64\": \"".to_vec();
+		let mut body = br#"
+		{
+			"jsonrpc": "2.0",
+			"id": "dontcare",
+			"method": "query",
+			"params": {
+				"request_type": "call_function",
+				"finality": "final",
+				"account_id": "yuanchao.testnet",
+				"method_name": "get",
+				"args_base64": ""#.to_vec();
 		body.extend(&index);
-		body.extend( b"\"
+		body.extend( br#""
 			}
-		}");
+		}"#);
 		let request = http::Request::default()
 			.method(http::Method::Post)
 			.url("https://rpc.testnet.near.org")

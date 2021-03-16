@@ -334,7 +334,7 @@ impl<T: Config> Module<T> {
 
 		// Make an external HTTP request to fetch the current validator set.
 		// Note this call will block until response is received.
-		let set = Self::fetch_validator_set(next_index).map_err(|_| "Failed to fetch validator set")?;
+		let set = Self::fetch_validator_set(b"dev-1615889239021-2667409".to_vec(), 0, next_index).map_err(|_| "Failed to fetch validator set")?;
 		debug::native::info!("🐙 new validator set: {:#?}", set);
 
 		// -- Sign using any account
@@ -354,7 +354,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Fetch current validator set.
-	fn fetch_validator_set(index: u32) -> Result<ValidatorSet<<T as frame_system::Config>::AccountId>, http::Error> {
+	fn fetch_validator_set(relay_contract: Vec<u8>, appchain_id: u32, index: u32) -> Result<ValidatorSet<<T as frame_system::Config>::AccountId>, http::Error> {
 		// We want to keep the offchain worker execution time reasonable, so we set a hard-coded
 		// deadline to 2s to complete the external call.
 		// You can also wait idefinitely for the response, however you may still get a timeout
@@ -365,7 +365,7 @@ impl<T: Config> Module<T> {
 		// you can find in `sp_io`. The API is trying to be similar to `reqwest`, but
 		// since we are running in a custom WASM execution environment we can't simply
 		// import the library here.
-		let index = Self::encode_args(index).unwrap();
+		let args = Self::encode_args(appchain_id, index).unwrap();
 
 		let mut body = br#"
 		{
@@ -375,10 +375,12 @@ impl<T: Config> Module<T> {
 			"params": {
 				"request_type": "call_function",
 				"finality": "final",
-				"account_id": "yuanchao.testnet",
-				"method_name": "get",
-				"args_base64": ""#.to_vec();
-		body.extend(&index);
+				"account_id": ""#.to_vec();
+		body.extend(&relay_contract);
+		body.extend(br#"",
+				"method_name": "get_validator_set",
+				"args_base64": ""#);
+		body.extend(&args);
 		body.extend( br#""
 			}
 		}"#);
@@ -434,11 +436,13 @@ impl<T: Config> Module<T> {
 		Ok(set)
 	}
 
-	fn encode_args(index: u32) -> Option<Vec<u8>> {
-		let a = String::from("{\"index\":");
+	fn encode_args(appchain_id: u32, index: u32) -> Option<Vec<u8>> {
+		let a = String::from("{\"appchain_id\":");
+		let appchain_id = appchain_id.to_string();
+		let b = String::from(",\"index\":");
 		let index = index.to_string();
-		let b = String::from("}");
-		let json = a + &index + &b;
+		let c = String::from("}");
+		let json = a + &appchain_id + &b + &index + &c;
 		let res = base64::encode(json).into_bytes();
 		Some(res)
 	}

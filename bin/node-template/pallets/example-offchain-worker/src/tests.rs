@@ -170,7 +170,7 @@ fn should_make_http_call_and_parse_result() {
 
 	t.execute_with(|| {
 		// when
-		let set = Example::fetch_validator_set(0).ok();
+		let set = Example::fetch_validator_set(b"dev-1615889239021-2667409".to_vec(), 0, 0).ok();
 		// then
 		assert_eq!(set, expected_set());
 	});
@@ -189,9 +189,9 @@ fn validator_set_response(state: &mut testing::OffchainState) {
 			"params": {
 				"request_type": "call_function",
 				"finality": "final",
-				"account_id": "yuanchao.testnet",
-				"method_name": "get",
-				"args_base64": "eyJpbmRleCI6MH0="
+				"account_id": "dev-1615889239021-2667409",
+				"method_name": "get_validator_set",
+				"args_base64": "eyJhcHBjaGFpbl9pZCI6MCwiaW5kZXgiOjB9"
 			}
 		}"#.to_vec(),
 		response: Some(br#"
@@ -264,12 +264,12 @@ fn extract_result_works() {
 #[test]
 fn encode_args_works() {
 	let test_data = vec![
-		(0u32, Some(vec![101, 121, 74, 112, 98, 109, 82, 108, 101, 67, 73, 54, 77, 72, 48, 61])), // eyJpbmRleCI6MH0=
-		(4294967295u32, Some(vec![101, 121, 74, 112, 98, 109, 82, 108, 101, 67, 73, 54, 78, 68, 73, 53, 78, 68, 107, 50, 78, 122, 73, 53, 78, 88, 48, 61])), // eyJpbmRleCI6NDI5NDk2NzI5NX0=
+		(0u32, 0u32, Some(vec![101, 121, 74, 104, 99, 72, 66, 106, 97, 71, 70, 112, 98, 108, 57, 112, 90, 67, 73, 54, 77, 67, 119, 105, 97, 87, 53, 107, 90, 88, 103, 105, 79, 106, 66, 57])), // eyJhcHBjaGFpbl9pZCI6MCwiaW5kZXgiOjB9
+		(4294967295u32, 4294967295u32, Some(vec![101, 121, 74, 104, 99, 72, 66, 106, 97, 71, 70, 112, 98, 108, 57, 112, 90, 67, 73, 54, 78, 68, 73, 53, 78, 68, 107, 50, 78, 122, 73, 53, 78, 83, 119, 105, 97, 87, 53, 107, 90, 88, 103, 105, 79, 106, 81, 121, 79, 84, 81, 53, 78, 106, 99, 121, 79, 84, 86, 57])), // eyJhcHBjaGFpbl9pZCI6NDI5NDk2NzI5NSwiaW5kZXgiOjQyOTQ5NjcyOTV9
 	];
 
-	for (index, expected) in test_data {
-		assert_eq!(expected, Example::encode_args(index));
+	for (appchain_id, index, expected) in test_data {
+		assert_eq!(expected, Example::encode_args(appchain_id, index));
 	}
 }
 

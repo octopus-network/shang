@@ -41,7 +41,7 @@ mod tests;
 /// When offchain worker is signing transactions it's going to request keys of type
 /// `KeyTypeId` from the keystore and use the ones it finds to sign the transaction.
 /// The keys can be inserted manually via RPC (see `author_insertKey`).
-pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"oct!");
+pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"octo");
 
 /// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrappers.
 /// We can use from supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
@@ -54,12 +54,18 @@ pub mod crypto {
 	};
 	app_crypto!(sr25519, KEY_TYPE);
 
-	pub struct TestAuthId;
-	impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
+	pub struct OctopusAuthId;
+	impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for OctopusAuthId {
 		type RuntimeAppPublic = Public;
 		type GenericSignature = sp_core::sr25519::Signature;
 		type GenericPublic = sp_core::sr25519::Public;
 	}
+}
+
+pub type ChainId = u32;
+#[derive(Clone, Copy, Eq, PartialEq, RuntimeDebug, Encode, Decode)]
+pub enum MotherchainType {
+	NEAR,
 }
 
 /// This pallet's configuration trait
@@ -74,17 +80,17 @@ pub trait Config: CreateSignedTransaction<Call<Self>> {
 
 	// Configuration parameters
 
+	type AppchainId: Get<ChainId>;
+	///
+	type Motherchain: Get<MotherchainType>;
+	///
+	const RELAY_CONTRACT_NAME: &'static [u8];
 	/// A grace period after we send transaction.
 	///
 	/// To avoid sending too many transactions, we only attempt to send one
 	/// every `GRACE_PERIOD` blocks. We use Local Storage to coordinate
 	/// sending between distinct runs of this offchain worker.
 	type GracePeriod: Get<Self::BlockNumber>;
-
-	/// Number of blocks of cooldown after unsigned transaction is included.
-	///
-	/// This ensures that we only accept unsigned transactions once, every `UnsignedInterval` blocks.
-	type UnsignedInterval: Get<Self::BlockNumber>;
 
 	/// A configuration for base priority of unsigned transactions.
 	///
@@ -95,17 +101,23 @@ pub trait Config: CreateSignedTransaction<Call<Self>> {
 
 pub(crate) const LOG_TARGET: &'static str = "octopus";
 
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+pub struct MotherchainInfo{
+	chain_type: MotherchainType,
+	relay_contract_name: Vec<u8>,
+}
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct Validator<AccountId> {
-	ocw_id: AccountId,
 	id: AccountId,
+	ocw_id: AccountId,
 	weight: u64,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct ValidatorSet<AccountId> {
-	appchain_id: u32,
-	validator_set_index: u32,
+	sequence_number: u32,
 	validators: Vec<Validator<AccountId>>,
 }
 
@@ -115,7 +127,7 @@ pub struct ValidatorSet<AccountId> {
 pub struct ValidatorSetPayload<Public, BlockNumber, AccountId> {
 	public: Public,
 	block_number: BlockNumber,
-	set: ValidatorSet<AccountId>,
+	val_set: ValidatorSet<AccountId>,
 }
 
 impl<T: SigningTypes> SignedPayload<T> for ValidatorSetPayload<T::Public, T::BlockNumber, <T as frame_system::Config>::AccountId> {
@@ -136,8 +148,8 @@ decl_storage! {
 		=> Vec<Validator<<T as frame_system::Config>::AccountId>>;
 	}
 	add_extra_genesis {
-		config(vals): Vec<(<T as frame_system::Config>::AccountId, <T as frame_system::Config>::AccountId, u64)>;
-		build(|config| Module::<T>::initialize_validator_set(&config.vals))
+		config(validators): Vec<(<T as frame_system::Config>::AccountId, <T as frame_system::Config>::AccountId, u64)>;
+		build(|config| Module::<T>::initialize_validator_set(&config.validators))
 	}
 }
 
@@ -147,7 +159,7 @@ decl_error! {
 		/// No CurrentValidatorSet.
 		NoCurrentValidatorSet,
 		/// The sequence number of new validator set was wrong.
-		WrongSeqNum,
+		WrongSequenceNumber,
 		/// Must be a validator.
 		NotValidator,
 	}
@@ -175,12 +187,12 @@ decl_module! {
 		) -> DispatchResult {
 			// This ensures that the function can only be called via unsigned transaction.
 			ensure_none(origin)?;
-			let current_set = <CurrentValidatorSet<T>>::get().ok_or(Error::<T>::NoCurrentValidatorSet)?;
+			let cur_val_set = <CurrentValidatorSet<T>>::get().ok_or(Error::<T>::NoCurrentValidatorSet)?;
 			//
 			frame_support::debug::native::info!(
 				target: LOG_TARGET,
-				"️️️🐙 current_set: {:#?},\nnext_set: {:#?},\nwho: {:?}",
-				current_set, payload.set, payload.public.clone().into_account()
+				"️️️🐙 current_validator_set: {:#?},\nnext_validator_set: {:#?},\nwho: {:?}",
+				cur_val_set, payload.val_set, payload.public.clone().into_account()
 			);
 			let candidates = <CandidateValidatorSets<T>>::get();
 			for i in 0..candidates.len() {
@@ -191,18 +203,18 @@ decl_module! {
 				);
 			}
 			//
-			ensure!(payload.set.validator_set_index == current_set.validator_set_index + 1, Error::<T>::WrongSeqNum);
+			ensure!(payload.val_set.sequence_number == cur_val_set.sequence_number + 1, Error::<T>::WrongSequenceNumber);
 
-			let val = current_set.validators
+			let val = cur_val_set.validators
 				.iter()
 				.find(|v| {
 					v.ocw_id == payload.public.clone().into_account()
 				});
 			if val.is_none() {
-				debug::native::error!("🐙 Not a validator in current set: {:?}", payload.public.clone().into_account());
+				debug::native::error!("🐙 Not a validator in current validator set: {:?}", payload.public.clone().into_account());
 				return Err(Error::<T>::NotValidator.into());
 			}
-			Self::add_validator_set(val.unwrap().clone(), payload.set);
+			Self::add_validator_set(val.unwrap().clone(), payload.val_set);
 			//
 			frame_support::debug::native::info!("🐙 after submit_validator_set");
 			let candidates = <CandidateValidatorSets<T>>::get();
@@ -238,16 +250,16 @@ decl_module! {
 				return;
 			}
 
-			let next_index;
-			if let Some(set) = <CurrentValidatorSet<T>>::get() {
-				next_index = set.validator_set_index + 1;
+			let next_seq_num;
+			if let Some(cur_val_set) = <CurrentValidatorSet<T>>::get() {
+				next_seq_num = cur_val_set.sequence_number + 1;
 			} else {
 				debug::native::error!("🐙 CurrentValidatorSet must be initialized.");
 				return;
 			}
-			debug::native::info!("🐙 Next validator set index: {}", next_index);
+			debug::native::info!("🐙 Next validator set sequenc number: {}", next_seq_num);
 
-			if let Err(e) = Self::fetch_and_update_validator_set(block_number, next_index) {
+			if let Err(e) = Self::fetch_and_update_validator_set(block_number, next_seq_num) {
 				debug::native::error!("🐙 Error: {}", e);
 			}
 		}
@@ -264,11 +276,10 @@ impl<T: Config> Module<T> {
 			assert!(<CurrentValidatorSet<T>>::get().is_none(), "CurrentValidatorSet is already initialized!");
 			<CurrentValidatorSet<T>>::put(
 				ValidatorSet{
-					appchain_id: 100,
-					validator_set_index: 0,
+					sequence_number: 0,
 					validators: vals.iter().map(|x| Validator{
-						ocw_id: x.0.clone(),
 						id: x.1.clone(),
+						ocw_id: x.0.clone(),
 						weight: x.2,
 					}).collect::<Vec<_>>(),
 				}
@@ -329,20 +340,20 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	fn fetch_and_update_validator_set(block_number: T::BlockNumber, next_index: u32) -> Result<(), &'static str> {
+	fn fetch_and_update_validator_set(block_number: T::BlockNumber, next_seq_num: u32) -> Result<(), &'static str> {
 		debug::native::info!("🐙 in fetch_and_update_validator_set");
 
 		// Make an external HTTP request to fetch the current validator set.
 		// Note this call will block until response is received.
-		let set = Self::fetch_validator_set(b"dev-1615889239021-2667409".to_vec(), 0, next_index).map_err(|_| "Failed to fetch validator set")?;
-		debug::native::info!("🐙 new validator set: {:#?}", set);
+		let next_val_set = Self::fetch_validator_set(T::RELAY_CONTRACT_NAME.to_vec(), T::AppchainId::get(), next_seq_num).map_err(|_| "Failed to fetch validator set")?;
+		debug::native::info!("🐙 new validator set: {:#?}", next_val_set);
 
 		// -- Sign using any account
 		let (_, result) = Signer::<T, T::AuthorityId>::any_account().send_unsigned_transaction(
 			|account| ValidatorSetPayload {
 				public: account.public.clone(),
 				block_number,
-				set: set.clone()
+				val_set: next_val_set.clone()
 			},
 			|payload, signature| {
 				Call::submit_validator_set(payload, signature)
@@ -354,7 +365,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Fetch current validator set.
-	fn fetch_validator_set(relay_contract: Vec<u8>, appchain_id: u32, index: u32) -> Result<ValidatorSet<<T as frame_system::Config>::AccountId>, http::Error> {
+	fn fetch_validator_set(relay_contract: Vec<u8>, appchain_id: u32, seq_num: u32) -> Result<ValidatorSet<<T as frame_system::Config>::AccountId>, http::Error> {
 		// We want to keep the offchain worker execution time reasonable, so we set a hard-coded
 		// deadline to 2s to complete the external call.
 		// You can also wait idefinitely for the response, however you may still get a timeout
@@ -365,7 +376,7 @@ impl<T: Config> Module<T> {
 		// you can find in `sp_io`. The API is trying to be similar to `reqwest`, but
 		// since we are running in a custom WASM execution environment we can't simply
 		// import the library here.
-		let args = Self::encode_args(appchain_id, index).unwrap();
+		let args = Self::encode_args(appchain_id, seq_num).unwrap();
 
 		let mut body = br#"
 		{
@@ -423,26 +434,26 @@ impl<T: Config> Module<T> {
 		})?;
 		debug::native::info!("🐙 Got response: {:?}", body_str);
 
-		let set = match Self::parse_validator_set(body_str) {
-			Some(set) => Ok(set),
+		let val_set = match Self::parse_validator_set(body_str) {
+			Some(val_set) => Ok(val_set),
 			None => {
 				debug::warn!("🐙 Unable to extract validator set from the response: {:?}", body_str);
 				Err(http::Error::Unknown)
 			}
 		}?;
 
-		debug::warn!("🐙 Got validator set: {:?}", set);
+		debug::warn!("🐙 Got validator set: {:?}", val_set);
 
-		Ok(set)
+		Ok(val_set)
 	}
 
-	fn encode_args(appchain_id: u32, index: u32) -> Option<Vec<u8>> {
+	fn encode_args(appchain_id: u32, seq_num: u32) -> Option<Vec<u8>> {
 		let a = String::from("{\"appchain_id\":");
 		let appchain_id = appchain_id.to_string();
-		let b = String::from(",\"index\":");
-		let index = index.to_string();
+		let b = String::from(",\"seq_num\":");
+		let seq_num = seq_num.to_string();
 		let c = String::from("}");
-		let json = a + &appchain_id + &b + &index + &c;
+		let json = a + &appchain_id + &b + &seq_num + &c;
 		let res = base64::encode(json).into_bytes();
 		Some(res)
 	}
@@ -452,32 +463,19 @@ impl<T: Config> Module<T> {
 		let result = Self::extract_result(body_str).unwrap();
 		let result_str = sp_std::str::from_utf8(&result).unwrap();
 		debug::native::info!("🐙 Got result: {:?}", result_str);
-		let mut set: ValidatorSet<<T as frame_system::Config>::AccountId> = ValidatorSet {
-			appchain_id: 0,
-			validator_set_index: 0,
+		let mut val_set: ValidatorSet<<T as frame_system::Config>::AccountId> = ValidatorSet {
+			sequence_number: 0,
 			validators: vec![],
 		};
 		let val = lite_json::parse_json(result_str);
 		val.ok().and_then(|v| match v {
 			JsonValue::Object(obj) => {
-				set.appchain_id = obj
+				val_set.sequence_number = obj
 					.clone()
 					.into_iter()
 					.find(|(k, _)| {
-						let mut appchain_id = "appchain_id".chars();
-						k.iter().all(|k| Some(*k) == appchain_id.next())
-					})
-					.and_then(|v| match v.1 {
-						JsonValue::Number(number) => Some(number),
-						_ => None,
-					})?
-					.integer as u32;
-				set.validator_set_index = obj
-					.clone()
-					.into_iter()
-					.find(|(k, _)| {
-						let mut validator_set_index = "validator_set_index".chars();
-						k.iter().all(|k| Some(*k) == validator_set_index.next())
+						let mut sequence_number = "sequence_number".chars();
+						k.iter().all(|k| Some(*k) == sequence_number.next())
 					})
 					.and_then(|v| match v.1 {
 						JsonValue::Number(number) => Some(number),
@@ -493,28 +491,6 @@ impl<T: Config> Module<T> {
 						JsonValue::Array(vs) => {
 							vs.iter().for_each(|v| match v {
 								JsonValue::Object(obj) => {
-									let ocw_id = obj
-										.clone()
-										.into_iter()
-										.find(|(k, _)| {
-											let mut ocw_id = "ocw_id".chars();
-											k.iter().all(|k| Some(*k) == ocw_id.next())
-										})
-										.and_then(|v| match v.1 {
-											JsonValue::String(s) => {
-												let data: Vec<u8> = s
-													.iter()
-													.skip(2)
-													.map(|c| *c as u8)
-													.collect::<Vec<_>>();
-												let b = hex::decode(data).unwrap();
-												<<T as SigningTypes>::Public as IdentifyAccount>::AccountId::decode(
-													&mut &b[..],
-												)
-												.ok()
-											}
-											_ => None,
-										});
 									let id = obj
 										.clone()
 										.into_iter()
@@ -537,6 +513,28 @@ impl<T: Config> Module<T> {
 											}
 											_ => None,
 										});
+									let ocw_id = obj
+										.clone()
+										.into_iter()
+										.find(|(k, _)| {
+											let mut ocw_id = "ocw_id".chars();
+											k.iter().all(|k| Some(*k) == ocw_id.next())
+										})
+										.and_then(|v| match v.1 {
+											JsonValue::String(s) => {
+												let data: Vec<u8> = s
+													.iter()
+													.skip(2)
+													.map(|c| *c as u8)
+													.collect::<Vec<_>>();
+												let b = hex::decode(data).unwrap();
+												<<T as SigningTypes>::Public as IdentifyAccount>::AccountId::decode(
+													&mut &b[..],
+												)
+												.ok()
+											}
+											_ => None,
+										});
 									let weight = obj
 										.clone()
 										.into_iter()
@@ -549,9 +547,9 @@ impl<T: Config> Module<T> {
 											_ => None,
 										});
 									if id.is_some() && weight.is_some() {
-										set.validators.push(Validator {
-											ocw_id: ocw_id.unwrap(),
+										val_set.validators.push(Validator {
 											id: id.unwrap(),
+											ocw_id: ocw_id.unwrap(),
 											weight: weight.unwrap().integer as u64,
 										});
 									}
@@ -562,7 +560,7 @@ impl<T: Config> Module<T> {
 						}
 						_ => None,
 					});
-				Some(set)
+				Some(val_set)
 			}
 			_ => None,
 		})
@@ -632,14 +630,14 @@ impl<T: Config> Module<T> {
 	/// Add new validator set to the list.
 	fn add_validator_set(
 		val: Validator<<T as frame_system::Config>::AccountId>,
-		new_set: ValidatorSet<<T as frame_system::Config>::AccountId>,
+		new_val_set: ValidatorSet<<T as frame_system::Config>::AccountId>,
 	) {
-		debug::native::info!("🐙 Adding to the voters: {:#?}", new_set);
+		debug::native::info!("🐙 Adding to the voters: {:#?}", new_val_set);
 		let index = 0;
-		<CandidateValidatorSets<T>>::mutate(|sets| {
+		<CandidateValidatorSets<T>>::mutate(|val_sets| {
 			// TODO
-			if sets.len() == 0 {
-				sets.push(new_set);
+			if val_sets.len() == 0 {
+				val_sets.push(new_val_set);
 			}
 		});
 
@@ -662,7 +660,7 @@ impl<T: Config> Module<T> {
 
 	fn validate_transaction_parameters(
 		block_number: &T::BlockNumber,
-		set: &ValidatorSet<<T as frame_system::Config>::AccountId>,
+		val_set: &ValidatorSet<<T as frame_system::Config>::AccountId>,
 		account_id: <T as frame_system::Config>::AccountId,
 	) -> TransactionValidity {
 		// Let's make sure to reject transactions from the future.
@@ -677,7 +675,7 @@ impl<T: Config> Module<T> {
 			// transactions in the pool. Next we tweak the priority depending on how much
 			// it differs from the current average. (the more it differs the more priority it
 			// has).
-			.priority(T::UnsignedPriority::get().saturating_add(set.validator_set_index as _))
+			.priority(T::UnsignedPriority::get().saturating_add(val_set.sequence_number as _))
 			// This transaction does not require anything else to go before into the pool.
 			// In theory we could require `previous_unsigned_at` transaction to go first,
 			// but it's not necessary in our case.
@@ -687,7 +685,7 @@ impl<T: Config> Module<T> {
 			// get to the transaction pool and will end up in the block.
 			// We can still have multiple transactions compete for the same "spot",
 			// and the one with higher priority will replace other one in the pool.
-			.and_provides((set.validator_set_index, account_id))
+			.and_provides((val_set.sequence_number, account_id))
 			// The transaction is only valid for next 5 blocks. After that it's
 			// going to be revalidated by the pool.
 			.longevity(5)
@@ -722,7 +720,7 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 			if !signature_valid {
 				return InvalidTransaction::BadProof.into();
 			}
-			Self::validate_transaction_parameters(&payload.block_number, &payload.set, payload.public.clone().into_account())
+			Self::validate_transaction_parameters(&payload.block_number, &payload.val_set, payload.public.clone().into_account())
 		} else {
 			InvalidTransaction::Call.into()
 		}
@@ -739,9 +737,9 @@ impl<T: Config> pallet_session::SessionManager<T::AccountId> for Module<T> {
 				<frame_system::Module<T>>::block_number(),
 				new_index
 			);
-			if let Some(current_set) = <CurrentValidatorSet<T>>::get() {
+			if let Some(cur_val_set) = <CurrentValidatorSet<T>>::get() {
 				//
-				frame_support::debug::native::info!(target: LOG_TARGET, "🐙 current_set: {:#?}", current_set);
+				frame_support::debug::native::info!(target: LOG_TARGET, "🐙 current_validator_set: {:#?}", cur_val_set);
 				let candidates = <CandidateValidatorSets<T>>::get();
 				for i in 0..candidates.len() {
 					frame_support::debug::native::info!(
@@ -751,25 +749,25 @@ impl<T: Config> pallet_session::SessionManager<T::AccountId> for Module<T> {
 					);
 				}
 				//
-				let total_weight: u64 = current_set.validators.iter().map(|v| v.weight).sum();
+				let total_weight: u64 = cur_val_set.validators.iter().map(|v| v.weight).sum();
 				// TODO
-				let next_validator_set = <Voters<T>>::iter()
+				let next_val_set = <Voters<T>>::iter()
 					.find(|(_k, v)| v.iter().map(|x| x.weight).sum::<u64>() == total_weight)
 					.map(|(index, _v)| {
 						debug::native::info!("🐙 total_weight: {}, index: {}", total_weight, index);
 						<CandidateValidatorSets<T>>::get()[index as usize].clone()
 					});
-				match next_validator_set {
-					Some(new_set) => {
+				match next_val_set {
+					Some(new_val_set) => {
 						// TODO: transaction
-						<CurrentValidatorSet<T>>::put(new_set.clone());
+						<CurrentValidatorSet<T>>::put(new_val_set.clone());
 						let candidates = <CandidateValidatorSets<T>>::get();
 						for i in 0..candidates.len() {
 							<Voters<T>>::remove(i as u32);
 						}
 						<CandidateValidatorSets<T>>::kill();
-						debug::native::info!("🐙 validator set changed to: {:#?}", new_set.clone());
-						Some(new_set.validators.into_iter().map(|vals| vals.id).collect())
+						debug::native::info!("🐙 validator set changed to: {:#?}", new_val_set.clone());
+						Some(new_val_set.validators.into_iter().map(|vals| vals.id).collect())
 					}
 					None => {
 						debug::native::info!("🐙 validator set has't changed");

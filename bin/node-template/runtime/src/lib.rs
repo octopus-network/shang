@@ -337,17 +337,20 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 }
 
 parameter_types! {
+	pub const AppchainId: offchain_worker::ChainId = 0;
+	pub const Motherchain: offchain_worker::MotherchainType = offchain_worker::MotherchainType::NEAR;
 	pub const GracePeriod: u32 = 5;
-	pub const UnsignedInterval: u32 = 12;
 	pub const UnsignedPriority: u64 = 1 << 20;
 }
 
 impl offchain_worker::Config for Runtime {
 	type Event = Event;
-	type AuthorityId = offchain_worker::crypto::TestAuthId;
+	type AuthorityId = offchain_worker::crypto::OctopusAuthId;
 	type Call = Call;
+	type AppchainId = AppchainId;
+	type Motherchain = Motherchain;
+	const RELAY_CONTRACT_NAME: &'static [u8] = b"dev-1616239154529-4812993";
 	type GracePeriod = GracePeriod;
-	type UnsignedInterval = UnsignedInterval;
 	type UnsignedPriority = UnsignedPriority;
 }
 

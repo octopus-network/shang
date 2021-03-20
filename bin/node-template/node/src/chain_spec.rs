@@ -179,7 +179,7 @@ fn testnet_genesis(
 			}).collect::<Vec<_>>(),
 		}),
 		offchain_worker: Some(OffchainWorkerConfig {
-			vals: validators,
+			validators: validators,
 		}),
 		pallet_sudo: Some(SudoConfig {
 			// Assign network admin rights.

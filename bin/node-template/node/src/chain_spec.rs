@@ -2,7 +2,7 @@ use sp_core::{Pair, Public, sr25519};
 use node_template_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
 	SudoConfig, SystemConfig, WASM_BINARY, Signature,
-	opaque::SessionKeys, SessionConfig, IndicesConfig, OffchainWorkerConfig,
+	opaque::SessionKeys, SessionConfig, IndicesConfig, OctopusAppchainConfig,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -178,7 +178,7 @@ fn testnet_genesis(
 				))
 			}).collect::<Vec<_>>(),
 		}),
-		offchain_worker: Some(OffchainWorkerConfig {
+		octopus_appchain: Some(OctopusAppchainConfig {
 			validators: validators,
 		}),
 		pallet_sudo: Some(SudoConfig {

@@ -269,7 +269,7 @@ impl pallet_session::Config for Runtime {
 	type ValidatorIdOf = ConvertInto;
 	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
 	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-	type SessionManager = OffchainWorker;
+	type SessionManager = OctopusAppchain;
 	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = opaque::SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -337,15 +337,15 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 }
 
 parameter_types! {
-	pub const AppchainId: offchain_worker::ChainId = 0;
-	pub const Motherchain: offchain_worker::MotherchainType = offchain_worker::MotherchainType::NEAR;
+	pub const AppchainId: octopus_appchain::ChainId = 0;
+	pub const Motherchain: octopus_appchain::MotherchainType = octopus_appchain::MotherchainType::NEAR;
 	pub const GracePeriod: u32 = 5;
 	pub const UnsignedPriority: u64 = 1 << 20;
 }
 
-impl offchain_worker::Config for Runtime {
+impl octopus_appchain::Config for Runtime {
 	type Event = Event;
-	type AuthorityId = offchain_worker::crypto::OctopusAuthId;
+	type AuthorityId = octopus_appchain::crypto::OctopusAuthId;
 	type Call = Call;
 	type AppchainId = AppchainId;
 	type Motherchain = Motherchain;
@@ -385,7 +385,7 @@ construct_runtime!(
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
-		OffchainWorker: offchain_worker::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
+		OctopusAppchain: octopus_appchain::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 	}
 );
 

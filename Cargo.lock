@@ -4172,7 +4172,7 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
- "pallet-offchain-worker",
+ "pallet-octopus-appchain",
  "pallet-randomness-collective-flip",
  "pallet-session",
  "pallet-sudo",
@@ -4932,8 +4932,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-offchain-worker"
-version = "2.0.1"
+name = "pallet-octopus-appchain"
+version = "3.0.0"
 dependencies = [
  "base64 0.13.0",
  "frame-support",

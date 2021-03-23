@@ -258,3 +258,13 @@ zeroize = { opt-level = 3 }
 [profile.release]
 # Substrate runtime requires unwinding.
 panic = "unwind"
+
+[patch.crates-io]
+frame-support = { path = './frame/support' }
+frame-system = { path = './frame/system' }
+pallet-session = { path = './frame/session' }
+sp-core = { path = './primitives/core' }
+sp-io = { path = './primitives/io' }
+sp-runtime = { path = './primitives/runtime' }
+sp-std = { path = './primitives/std' }
+sp-keystore = { path = './primitives/keystore' }

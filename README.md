@@ -1,3 +1,4 @@
+⚠️ DEPRECATED. MOVING TO https://github.com/octopus-network/substrate/tree/octopus-dev
 ## Run a Local Testnet
 
 A simple local testnet consists 4 nodes: 3 validator nodes and 1 full node, the full node is used to expose the RPC interfaces.
